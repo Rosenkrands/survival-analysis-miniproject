@@ -25,18 +25,28 @@ names(data) <- c('pat_id','cens','obs_t','treat','sex','ascites','age','prothrom
 # Effect of Prednison
 The first task of the miniproject is to investigate the effect of prednison by considering estimates of the survival functions for the treatment groups and by performing a log-rank test.
 
+## Comparison of Survival Functions
+First we will plot the estimated survival functions for the two treatment groups.
+
 ```{r}
 treat_groups <- split(data, data$treat)
 names(treat_groups) <- c('prednisone','placebo')
-
 predni_fit <- survfit(Surv(treat_groups[['prednisone']]$obs_t,
                            treat_groups[['prednisone']]$cens)~1,type='kaplan-meier') 
-
 placebo_fit <- survfit(Surv(treat_groups[['placebo']]$obs_t,
                             treat_groups[['placebo']]$cens)~1,type='kaplan-meier')
+```
 
+```{r, echo=F, fig.height=3, fig.width=6}
 par(mfrow=c(1,2))
 plot(predni_fit,main='Prednisone')
 plot(placebo_fit,main='Placebo')
 ```
 
+Next we can consider differences between the two groups and we conclude the effect of prednison is very insignificant from the below summary.
+
+```{r, echo=F}
+survdiff(Surv(data$obs_t,data$cens) ~ data$treat)
+```
+
+## Log-Rank Test
