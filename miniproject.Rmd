@@ -7,8 +7,36 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(survival)
 ```
 
-# Importing the data
+# Importing the Data
 This miniproject will concern a cirrhosis dataset.
 The dataset is imported with the following code.
+We have hosted a copy of the dataset in a GitHub repository \texttt{Rosenkrands/survival-analysis-miniproject}.
+
+```{r}
+data_path = 'https://raw.githubusercontent.com/Rosenkrands/survival-analysis-miniproject
+/main/cirrhosis.dat'
+data = read.table(data_path)
+names(data) <- c('pat_id','cens','obs_t','treat','sex','ascites','age','prothrombin')
+```
+
+# Effect of Prednison
+The first task of the miniproject is to investigate the effect of prednison by considering estimates of the survival functions for the treatment groups and by performing a log-rank test.
+
+```{r}
+treat_groups <- split(data, data$treat)
+names(treat_groups) <- c('prednisone','placebo')
+
+predni_fit <- survfit(Surv(treat_groups[['prednisone']]$obs_t,
+                           treat_groups[['prednisone']]$cens)~1,type='kaplan-meier') 
+
+placebo_fit <- survfit(Surv(treat_groups[['placebo']]$obs_t,
+                            treat_groups[['placebo']]$cens)~1,type='kaplan-meier')
+
+par(mfrow=c(1,2))
+plot(predni_fit,main='Prednisone')
+plot(placebo_fit,main='Placebo')
+```
+
