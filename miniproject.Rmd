@@ -1,0 +1,14 @@
+---
+title: "Survival Analysis - Miniproject"
+author: "fib 4107"
+date: "Autumn 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Importing the data
+This miniproject will concern a cirrhosis dataset.
+The dataset is imported with the following code.
