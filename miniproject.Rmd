@@ -3,11 +3,80 @@ title: "Survival Analysis - Miniproject"
 author: "fib 4107"
 date: "Autumn 2020"
 output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(survival)
+library(readr)
+andersen.plot=function(surv,log_scale=FALSE){
+    #surv is survfit object based on stratified Cox ph model
+
+    nstrata=surv$strata
+    if (log_scale) {
+        surv$cumhaz = surv$cumhaz[surv$cumhaz != 0] 
+        plot(c(0,0),c(0,0),xlim=c(min(log(surv$cumhaz)),max(log(surv$cumhaz))),ylim=c(min(log(surv$cumhaz)),max(log(surv$cumhaz))),xlab="H1",ylab="H2",type="n",main='Log-scale')    
+    } else {
+        #plot(c(0,0),c(0,0),xlim=c(min(surv$cumhaz),max(surv$cumhaz)),ylim=c(min(surv$cumhaz),max(surv$cumhaz)),xlab="H1",ylab="H2",type="n")
+        plot(c(0,0),c(0,0),xlim=c(0,max(surv$cumhaz)),ylim=c(0,max(surv$cumhaz)),xlab="H1",ylab="H2",type="n")
+    }
+    
+    count=1
+    for (i in 1:length(nstrata))
+        for (j in i:length(nstrata))
+    # for (i in 1:1)
+    #     for (j in 2:2)
+            if (i != j){
+
+
+                if (i==1) times1=surv$time[1:nstrata[1]] else times1=surv$time[sum(nstrata[1:(i-1)]+1):sum(nstrata[1:i])]
+
+                if (j==1) times2=surv$time[1:nstrata[1]] else times2=surv$time[sum(nstrata[1:(j-1)]+1):sum(nstrata[1:j])]
+
+
+                #print(times1)
+                #print(times2)
+                mintime=min(c(max(times1),max(times2)))
+                times=sort(unique(c(times1,times2)))
+                times=times[times<=mintime]
+                curves=summary(surv,times=times)
+                ntimes=length(times)
+                #print(times)
+                
+                if (log_scale) {
+                    temp1=curves$cumhaz[c(1:ntimes)+(i-1)*ntimes]
+                    temp2=curves$cumhaz[c(1:ntimes)+(j-1)*ntimes]
+                    temp1_z = temp1 != 0
+                    temp2_z = temp2 != 0
+                    temp1=temp1[temp1_z & temp2_z]
+                    temp2=temp2[temp1_z & temp2_z]
+                } else {
+                    temp1=curves$cumhaz[c(1:ntimes)+(i-1)*ntimes]
+                    temp2=curves$cumhaz[c(1:ntimes)+(j-1)*ntimes]
+                }
+                
+                #print(ntimes)
+                #print(summary(curves))
+                #print(curves$time)
+                #print(curves$cumhaz)
+                #print(temp1)
+                #print(temp2)
+                #include=temp1 > 0 & temp2 >0
+                #temp1=temp1[include]
+                #temp2=temp2[include]
+                if (log_scale) {
+                    points(log(temp1),log(temp2),xlab="",ylab="",col=count)
+                    fit=lm(log(temp2)~log(temp1))
+                } else {
+                    points(temp1,temp2,xlab="",ylab="",col=count)
+                    fit=lm(temp2~-1+temp1)
+                }
+                abline(fit,col=count)
+                count=count+1
+            }
+}
 ```
 
 # Importing the Data
@@ -16,9 +85,12 @@ The dataset is imported with the following code.
 We have hosted a copy of the dataset in a GitHub repository \texttt{Rosenkrands/survival-analysis-miniproject}.
 
 ```{r}
-data_path = 'https://raw.githubusercontent.com/Rosenkrands/survival-analysis-miniproject
-/main/cirrhosis.dat'
-data = read.table(data_path)
+#data_path = 'https://raw.githubusercontent.com/Rosenkrands/survival-analysis-miniproject
+#/main/cirrhosis.dat'
+#data_path = 'https://people.math.aau.dk/~rw/Undervisning/DurationAnalysis/Data/cirrhosis.dat'
+#data = read.table(data_path)
+data <- read_table2("cirrhosis.csv", 
+    col_names = FALSE)
 names(data) <- c('pat_id','cens','obs_t','treat','sex','ascites','age','prothrombin')
 ```
 
@@ -43,10 +115,166 @@ plot(predni_fit,main='Prednisone')
 plot(placebo_fit,main='Placebo')
 ```
 
+## Log-Rank Test
 Next we can consider differences between the two groups and we conclude the effect of prednison is very insignificant from the below summary.
 
 ```{r, echo=F}
 survdiff(Surv(data$obs_t,data$cens) ~ data$treat)
 ```
 
-## Log-Rank Test
+# Cox Proportional Model
+
+The second task is to fit a cox proportional model to the dataset.
+
+```{r}
+coxph_model = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age + data$prothrombin)
+```
+
+## Model Assesment
+
+```{r}
+fit.treat = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age + data$prothrombin)
+devres=residuals(fit.treat,type='deviance')
+par(mfrow=c(1,2))
+hist(devres)
+boxplot(devres~data$cens)
+```
+
+For each of the variables we fit a stratified model and asses the effects.
+
+### Treatment
+First we look at the treatment variable, i.e. whether or not the patient were treated with the placebo or prednison.
+
+```{r}
+fit.treat = coxph(Surv(data$obs_t,data$cens) ~ strata(data$treat) + data$sex + data$ascites + data$age + data$prothrombin)
+surv.treat = survfit(fit.treat)
+par(mfrow=c(1,2))
+andersen.plot(surv.treat)
+andersen.plot(surv.treat,log_scale = T)
+```
+We conclude that the points fit reasonably well with the assumption of proportional hazard, with slope 1 which indicates that there are no difference in hazard between the two groups.
+
+### Sex
+Next we look at the sex variable.
+
+```{r}
+fit.treat = coxph(Surv(data$obs_t,data$cens) ~ data$treat + strata(data$sex) + data$ascites + data$age + data$prothrombin)
+surv.treat = survfit(fit.treat)
+par(mfrow=c(1,2))
+andersen.plot(surv.treat)
+andersen.plot(surv.treat,log_scale=T)
+```
+
+The plots indicate the that hazards are proportional, but unlike with the treatment variable, there seems to be a different hazard rate between the two groups as the slope is approximately 2. 
+
+### Ascites
+The ascites variable are again of categorical nature so we can construct andersen plots.
+
+```{r}
+fit.treat = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + strata(data$ascites) + data$age + data$prothrombin)
+surv.treat = survfit(fit.treat)
+par(mfrow=c(1,2))
+andersen.plot(surv.treat)
+andersen.plot(surv.treat,log_scale=T)
+```
+
+On the regular plot the hazard rates seem to be proportional, however when looking on the plot with log scales there are some outliers for the black category.
+
+### Age
+
+```{r}
+fit.treat = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age + data$prothrombin)
+devres=residuals(fit.treat,type='deviance')
+par(mfrow=c(1,1))
+plot(data$age,devres)
+```
+
+Looks good, fewer point for lower ages as not many observations.
+
+### Prothrombin
+
+```{r}
+par(mfrow=c(1,2))
+plot(data$prothrombin,devres)
+hist(data$prothrombin)
+```
+
+Looks good, many at 100 as this is the normal level. Many below; old people mostly maybe related to illness.
+
+# Hypothesis test
+Summary from cox proportional model.
+
+```{r, echo=F}
+coxph_model
+```
+
+We observe that the only insignificant variable is the type of treatment, prednison or placebo.
+
+Therefore we accept the null hypothesis of no effect of prednison treatment.
+
+# Transformations
+
+## Age
+martingale residuals for age
+
+```{r}
+fitnoage = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$prothrombin)
+resall=residuals(fitnoage)
+par(mfrow=c(1,1))
+scatter.smooth(data$age,resall)
+```
+
+relation looks linear, indicating that including as continuous variable is good.
+
+## Prothrombin
+martingale residuals for prothrombin.
+
+```{r}
+fitnopro = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age)
+resall=residuals(fitnopro)
+par(mfrow=c(1,1))
+scatter.smooth(data$prothrombin,resall)
+```
+
+relation could suggest discretization at 55 percent would benefit the model.
+
+```{r}
+fit.pro <- coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age + cut(data$prothrombin, breaks=c(0,55,150)))
+devres_pro=residuals(fit.pro,type='deviance')
+par(mfrow=c(2,2))
+hist(devres)
+boxplot(devres~data$cens)
+hist(devres_pro)
+boxplot(devres_pro~data$cens)
+```
+
+however looking at results it is not worth the added complexity.
+
+# Interaction
+
+Model with interaction terms.
+
+```{r}
+fit = coxph(Surv(data$obs_t,data$cens) ~ data$treat + data$sex + data$ascites + data$age + data$prothrombin + data$treat*(data$sex + data$ascites + data$age + data$prothrombin))
+fit
+```
+
+model indicates significant interaction between treatment and ascites variable.
+
+# Estimate survival function
+Estimate and plot survival function.
+
+```{r}
+fit = coxph(Surv(obs_t,cens) ~ treat + sex + ascites + age + prothrombin + treat*ascites, data=data)
+newdata = data.frame(treat=c(0),sex=c(1),ascites=c(1),age=c(57),prothrombin=c(85))
+surv_fit = survfit(formula=fit,newdata=newdata)
+plot(surv_fit)
+```
+
+Day number 2928 is the first observation time after 8 years.
+
+```{r}
+surv_fit$surv[surv_fit$time == 2928]
+```
+
+poor guy.
